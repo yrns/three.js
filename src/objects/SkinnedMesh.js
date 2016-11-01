@@ -67,7 +67,11 @@ function SkinnedMesh( geometry, material, useVertexTexture ) {
 	this.normalizeSkinWeights();
 
 	this.updateMatrixWorld( true );
-	this.bind( new Skeleton( bones, undefined, useVertexTexture ), this.matrixWorld );
+    if ( bones.length ) {
+		this.bind( new Skeleton( bones, undefined, useVertexTexture ), this.matrixWorld );
+    } else {
+		this.skeleton = null
+	}
 
 }
 
@@ -175,6 +179,18 @@ SkinnedMesh.prototype = Object.assign( Object.create( Mesh.prototype ), {
 			console.warn( 'THREE.SkinnedMesh unrecognized bindMode: ' + this.bindMode );
 
 		}
+
+	},
+
+	copy: function ( source ) {
+
+		Mesh.prototype.copy.call( this, source );
+
+		if ( this.skeleton === null ) {
+			this.bind( source.skeleton, this.matrixWorld );
+		}
+
+		return this;
 
 	},
 
