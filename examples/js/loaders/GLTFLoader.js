@@ -890,9 +890,28 @@ GLTFParser.prototype.loadAccessors = function() {
 			var itemSize = WEBGL_TYPE_SIZES[ accessor.type ];
 			var TypedArray = WEBGL_COMPONENT_TYPES[ accessor.componentType ];
 
-			var array = new TypedArray( arraybuffer, accessor.byteOffset, accessor.count * itemSize );
+            // For VEC3: itemSize is 3, elementBytes is 4, itemBytes is 12.
+            var elementBytes = TypedArray.BYTES_PER_ELEMENT;
+            var itemBytes = elementBytes * itemSize;
 
-			return new THREE.BufferAttribute( array, itemSize );
+            // The buffer is not interleaved if the stride is the item size in bytes.
+            if ( accessor.byteStride && accessor.byteStride !== itemBytes ) {
+
+                // Use the full buffer if it's interleaved.
+                var array = new TypedArray( arraybuffer );
+
+                // Integer parameters to IB/IBA are in array elements, not bytes.
+                var ib = new THREE.InterleavedBuffer( array, accessor.byteStride / elementBytes );
+
+                return new THREE.InterleavedBufferAttribute( ib, itemSize, accessor.byteOffset / elementBytes );
+
+            } else {
+
+                array = new TypedArray( arraybuffer, accessor.byteOffset, accessor.count * itemSize );
+
+				return new THREE.BufferAttribute( array, itemSize );
+
+            }
 
 		});
 
@@ -1403,6 +1422,70 @@ GLTFParser.prototype.loadAnimations = function() {
 		"nodes"
 	]).then( function( dependencies ) {
 
+		var exts = this.json.extensions;
+		
+        if ( exts && exts.BLENDER_actions != null ) {
+            var clips = [];
+            var fps = this.json.scenes[this.json.scene].extras.frames_per_second;
+
+            var reBone = /_root_(.+)$/;
+
+            // "path" to bone property name.
+            var pathProp = {
+                translation: "position",
+                rotation: "quaternion",
+                scale: "scale"
+            };
+
+            // Each action has shape: {id: channels: frames:}
+            // id is "<skel-id>|<anim-id>"
+            // Each channel has shape: {id: <skel-id>_root_<bone-id>, path: (translation|rotation|scale), data: <accessor-id>}
+            // frames is the total frame count (e.g. 60)
+            _each( exts.BLENDER_actions.actions, function( action, actionID ) {
+
+                var times;
+                var tracks = []
+
+                _each( action.channels, function( channel ) {
+                    var m = channel.id.match(reBone);
+                    var boneName = ( m && m[1] ) || channel.id;
+                    // Bone name does not need to be quoted:
+                    var trackName = ".bones[" + boneName + "]." + pathProp[channel.path];
+                    var data = dependencies.accessors[channel.data];
+                    var values = data.array;
+
+                    // times is the same for each track:
+                    if ( !times ) {
+                        // This will be copied and optimized below when the track is created.
+                        times = new Array( data.count );
+                        var dt = 1.0 / fps;
+                        for ( var i = 0; i < times.length; i ++ ) {
+                            times[i] = dt * i;
+                        }
+                    }
+
+                    tracks.push(new (channel.path === "rotation"
+                                     ? THREE.QuaternionKeyframeTrack
+                                     : THREE.VectorKeyframeTrack)(trackName, times, values));
+                });
+
+                var duration = action.frames / fps;
+                var split = actionID.split('|');
+                //var skelID = split[0];
+                var animID = split[1];
+
+                var clip = new THREE.AnimationClip(animID, duration, tracks);
+                // if (actionsNode[skelID] == null)
+                //         actionsNode[skelID] = {};
+                // actionsNode[skelID][animID] = clip;
+                clips.push(clip);
+
+            });
+
+            return clips;
+
+        }
+
 		return _each( this.json.animations, function( animation, animationId ) {
 
 			var interps = [];
@@ -1520,7 +1603,7 @@ GLTFParser.prototype.loadNodes = function() {
 
 				if ( node.meshes !== undefined ) {
 
-					_each( node.meshes, function( meshId ) {
+					_each( node.meshes, function( meshId, meshIndex ) {
 
 						var group = dependencies.meshes[ meshId ];
 
@@ -1538,15 +1621,7 @@ GLTFParser.prototype.loadNodes = function() {
 								material = originalMaterial;
 							}
 
-							mesh = new THREE.Mesh( originalGeometry, material );
-							mesh.castShadow = true;
-
-							var skinEntry;
-							if ( node.skin ) {
-
-								skinEntry = dependencies.skins[ node.skin ];
-
-							}
+							var skinEntry = node.skin && dependencies.skins[ node.skin ];
 
 							// Replace Mesh with SkinnedMesh in library
 							if (skinEntry) {
@@ -1554,9 +1629,6 @@ GLTFParser.prototype.loadNodes = function() {
 								var geometry = originalGeometry;
 								var material = originalMaterial;
 								material.skinning = true;
-
-								mesh = new THREE.SkinnedMesh( geometry, material, false );
-								mesh.castShadow = true;
 
 								var bones = [];
 								var boneInverses = [];
@@ -1567,7 +1639,8 @@ GLTFParser.prototype.loadNodes = function() {
 
 									if ( jointNode ) {
 
-										jointNode.skin = mesh;
+										// Removed in #9951?
+										//jointNode.skin = mesh;
 										bones.push(jointNode);
 
 										var m = skinEntry.inverseBindMatrices.array;
@@ -1580,9 +1653,17 @@ GLTFParser.prototype.loadNodes = function() {
 
 								});
 
+								mesh = new THREE.SkinnedMesh( geometry, material, false );
+
 								mesh.bind( new THREE.Skeleton( bones, boneInverses, false ), skinEntry.bindShapeMatrix );
 
-							}
+							} else {
+
+							    mesh = new THREE.Mesh( originalGeometry, material );
+
+                            }
+
+                            mesh.castShadow = true;
 
 							_node.add( mesh );
 
@@ -1592,7 +1673,8 @@ GLTFParser.prototype.loadNodes = function() {
 
 				}
 
-				if ( node.camera !== undefined ) {
+                // There is a case where blendergltf exports the node but not the camera.
+				if ( node.camera !== undefined && dependencies.cameras !== undefined ) {
 
 					var camera = dependencies.cameras[ node.camera ];
 
@@ -1651,7 +1733,7 @@ GLTFParser.prototype.loadExtensions = function() {
 							lightNode = new THREE.PointLight( color );
 						break;
 
-						case "spot ":
+						case "spot":
 							lightNode = new THREE.SpotLight( color );
 							lightNode.position.set( 0, 0, 1 );
 						break;
