@@ -1599,7 +1599,8 @@ GLTFParser.prototype.loadNodes = function() {
 
 			return _each( __nodes, function( _node, nodeId ) {
 
-				var node = this.json.nodes[ nodeId ];
+				var nodes = this.json.nodes;
+				var node = nodes[ nodeId ];
 
 				if ( node.meshes !== undefined ) {
 
@@ -1633,11 +1634,30 @@ GLTFParser.prototype.loadNodes = function() {
 								var bones = [];
 								var boneInverses = [];
 
+								mesh = new THREE.SkinnedMesh( geometry, material, false );
+								
 								_each( skinEntry.jointNames, function( jointId, i ) {
 
 									var jointNode = __nodes[ jointId ];
 
 									if ( jointNode ) {
+
+										jointNode.matrixAutoUpdate = true;
+										//jointNode.updateMatrix();
+										
+										// By default, parent to the mesh. This may get overridden below.
+										if (jointNode.parent === null) {
+											mesh.add(jointNode);
+										}
+
+										// Add children to bone. If the armature is in the scene,
+										// this will be overridden in `buildNodeHierachy` later.
+										_each( nodes[jointId].children, function(childId) {
+											var child = __nodes[childId];
+											if (child) {
+												jointNode.add(child);
+											}
+										});
 
 										// Removed in #9951?
 										//jointNode.skin = mesh;
@@ -1653,9 +1673,15 @@ GLTFParser.prototype.loadNodes = function() {
 
 								});
 
-								mesh = new THREE.SkinnedMesh( geometry, material, false );
+								// Update matrices before calculating inverses.
+								mesh.updateMatrixWorld( true );
 
-								mesh.bind( new THREE.Skeleton( bones, boneInverses, false ), skinEntry.bindShapeMatrix );
+								for (var i = 0; i < bones.length; i++) {
+									boneInverses[i].getInverse( bones[i].matrixWorld );
+								}
+								
+								mesh.bind( new THREE.Skeleton( bones, boneInverses, false ), skinEntry.bindShapeMatrix.getInverse( mesh.matrixWorld ) );
+								//mesh.bind( new THREE.Skeleton( bones ), skinEntry.bindShapeMatrix );
 
 							} else {
 
