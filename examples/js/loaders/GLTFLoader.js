@@ -1272,12 +1272,7 @@ GLTFParser.prototype.loadMeshes = function() {
 
 		return _each( this.json.meshes, function( mesh, meshId ) {
 
-			var group = new THREE.Object3D();
-			group.name = mesh.name;
-
-			var primitives = mesh.primitives;
-
-			_each( primitives, function( primitive ) {
+			return _each( mesh.primitives, function( primitive, primitiveIndex ) {
 
 				if ( primitive.mode === WEBGL_CONSTANTS.TRIANGLES || primitive.mode === undefined ) {
 
@@ -1342,14 +1337,13 @@ GLTFParser.prototype.loadMeshes = function() {
 
 					}
 
-
 					var material = dependencies.materials[ primitive.material ];
 
 					var meshNode = new THREE.Mesh( geometry, material );
 					meshNode.castShadow = true;
 					meshNode.name = meshId + primitiveIndex;
 
-					group.add( meshNode );
+					return meshNode;
 
 				} else {
 
@@ -1357,9 +1351,30 @@ GLTFParser.prototype.loadMeshes = function() {
 
 				}
 
-			});
+			}).then( function( primitives ) {
 
-			return group;
+				// The mesh or group name.
+				var name = mesh.name || meshId;
+
+				// // If there is only one primitive, return just the mesh.
+				// if ( primitives.length === 1 ) {
+				
+				// 	primitives[0].name = name;
+				// 	return primitives[0];
+
+				// } else {
+				
+					// Otherwise return a group.
+					var group = new THREE.Object3D();
+					group.name = name;
+					
+					group.add.apply( group, primitives );
+					
+					return group;
+					
+				// }
+
+			});
 
 		});
 
