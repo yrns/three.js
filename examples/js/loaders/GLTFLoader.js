@@ -1245,7 +1245,7 @@ GLTFParser.prototype.loadMaterials = function() {
 			}
 
 			var _material = new materialType( materialParams );
-			_material.name = material.name;
+			_material.name = material.name || materialId;
 
 			return _material;
 
@@ -1274,6 +1274,7 @@ GLTFParser.prototype.loadMeshes = function() {
 				if ( primitive.mode === WEBGL_CONSTANTS.TRIANGLES || primitive.mode === undefined ) {
 
 					var geometry = new THREE.BufferGeometry();
+					geometry.name = meshId + primitiveIndex;
 
 					var attributes = primitive.attributes;
 
@@ -1338,6 +1339,7 @@ GLTFParser.prototype.loadMeshes = function() {
 
 					var meshNode = new THREE.Mesh( geometry, material );
 					meshNode.castShadow = true;
+					meshNode.name = meshId + primitiveIndex;
 
 					group.add( meshNode );
 
@@ -1376,14 +1378,14 @@ GLTFParser.prototype.loadCameras = function() {
 			// yfov = ( yfov === undefined && xfov ) ? xfov / aspect_ratio : yfov;
 
 			var _camera = new THREE.PerspectiveCamera( THREE.Math.radToDeg( xfov ), aspect_ratio, camera.perspective.znear || 1, camera.perspective.zfar || 2e6 );
-			_camera.name = camera.name;
+			_camera.name = camera.name || cameraId;
 
 			return _camera;
 
 		} else if ( camera.type == "orthographic" && camera.orthographic ) {
 
 			var _camera = new THREE.OrthographicCamera( window.innerWidth / - 2, window.innerWidth / 2, window.innerHeight / 2, window.innerHeight / - 2, camera.orthographic.znear, camera.orthographic.zfar );
-			_camera.name = camera.name;
+			_camera.name = camera.name || cameraId;
 
 			return _camera;
 
@@ -1555,7 +1557,7 @@ GLTFParser.prototype.loadNodes = function() {
 
 		}
 
-		_node.name = node.name;
+		_node.name = node.name || nodeId;
 
 		_node.matrixAutoUpdate = false;
 
@@ -1818,7 +1820,7 @@ GLTFParser.prototype.loadScenes = function() {
 		return _each( this.json.scenes, function( scene, sceneId ) {
 
 			var _scene = new THREE.Scene();
-			_scene.name = scene.name;
+			_scene.name = scene.name || sceneId;
 
 			_each( scene.nodes, function( nodeId ) {
 
