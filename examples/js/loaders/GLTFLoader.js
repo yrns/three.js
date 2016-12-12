@@ -54,14 +54,15 @@ THREE.GLTFLoader.prototype = {
 			crossOrigin: !!this.crossOrigin
 		});
 
-		glTFParser.parse( function( scene, cameras, animations ) {
+		glTFParser.parse( function( scene, cameras, animations, allScenes ) {
 
 			console.timeEnd( 'GLTFLoader' );
 
 			var glTF = {
 				"scene": scene,
 				"cameras": cameras,
-				"animations": animations
+				"animations": animations,
+				"scenes": allScenes
 			};
 
 			callback( glTF );
@@ -810,7 +811,14 @@ GLTFParser.prototype.parse = function( callback ) {
 
 		});
 
-		callback( scene, cameras, animations );
+		var scenes = [];
+		_each( dependencies.scenes, function( scene ) {
+
+			scenes.push( scene );
+
+		});
+		
+		callback( scene, cameras, animations, scenes );
 
 	}.bind( this ));
 
