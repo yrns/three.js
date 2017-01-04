@@ -1359,6 +1359,71 @@ THREE.GLTFLoader = ( function () {
 
 	};
 
+	function loadBlenderActions( json, dependencies, actions ) {
+
+		var fps = json.scenes[ json.scene ].extras.frames_per_second;
+		var reBone = /_root_(.+)$/;
+
+		// "path" to bone property name.
+		var pathProp = {
+			translation: "position",
+			rotation: "quaternion",
+			scale: "scale"
+		};
+
+		// Each action has shape: {id: channels: frames:}
+		// id is "<skel-id>|<anim-id>"
+		// Each channel has shape: {id: <skel-id>_root_<bone-id>, path: (translation|rotation|scale), data: <accessor-id>}
+		// frames is the total frame count (e.g. 60)
+		return _each( actions, function ( action, actionID ) {
+
+			var times;
+			var tracks = [];
+
+			_each( action.channels, function ( channel ) {
+
+				var m = channel.id.match( reBone );
+				var boneName = ( m && m[ 1 ] ) || channel.id;
+				// Bone name does not need to be quoted:
+				var trackName = ".bones[" + boneName + "]." + pathProp[ channel.path ];
+				var data = dependencies.accessors[ channel.data ];
+				var values = data.array;
+
+				// times is the same for each track:
+				if ( ! times ) {
+
+					// This will be copied and optimized below when the track is created.
+					times = new Array( data.count );
+					var dt = 1.0 / fps;
+
+					for ( var i = 0; i < times.length; i ++ ) {
+
+						times[ i ] = dt * i;
+
+					}
+
+				}
+
+				tracks.push( new ( channel.path === "rotation"
+								   ? THREE.QuaternionKeyframeTrack
+								   : THREE.VectorKeyframeTrack )( trackName, times, values ) );
+
+			} );
+
+			var duration = action.frames / fps;
+			var split = actionID.split( '|' );
+			//var skelID = split[ 0 ];
+			var animID = split[ 1 ];
+
+			return new THREE.AnimationClip( animID, duration, tracks );
+			// if (actionsNode[skelID] == null)
+			//         actionsNode[skelID] = {};
+			// actionsNode[skelID][animID] = clip;
+
+		} );
+
+	}
+
 	GLTFParser.prototype.loadAnimations = function () {
 
 		var json = this.json;
@@ -1369,6 +1434,17 @@ THREE.GLTFLoader = ( function () {
 			"nodes"
 
 		] ).then( function ( dependencies ) {
+
+			var exts = json.extensions;
+			var actions = exts &&
+				exts.BLENDER_actions &&
+				exts.BLENDER_actions.actions;
+
+			if ( actions ) {
+
+				return loadBlenderActions( json, dependencies, actions );
+
+			}
 
 			return _each( json.animations, function ( animation, animationId ) {
 
