@@ -1413,7 +1413,7 @@ THREE.GLTFLoader = ( function () {
 			var duration = action.frames / fps;
 			var split = actionID.split( '|' );
 			//var skelID = split[ 0 ];
-			var animID = split[ 1 ];
+			var animID = split[ 1 ] || actionID;
 
 			return new THREE.AnimationClip( animID, duration, tracks );
 			// if (actionsNode[skelID] == null)
