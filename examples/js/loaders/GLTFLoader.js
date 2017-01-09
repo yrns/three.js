@@ -1917,6 +1917,23 @@ THREE.GLTFLoader = ( function () {
 				_node.name = node.name !== undefined ? node.name : node.jointName;
 				_node.jointName = node.jointName;
 
+			} else if ( node.extras && node.extras.light ) {
+
+				// This is specific to blendergltf.
+				var light = json.extras.lights[node.extras.light];
+				var color = new THREE.Color().fromArray( light[light.type].color );
+				switch (light.type) {
+				case "directional":
+					_node = new THREE.DirectionalLight(color);
+					break;
+				case "hemi":
+					_node = new THREE.HemisphereLight(color); // Sky, ground color, intensity?
+					break;
+				case "point":
+					_node = new THREE.PointLight(color, 1.0, 20.0);
+					break;
+				}
+
 			} else {
 
 				_node = new THREE.Object3D();
