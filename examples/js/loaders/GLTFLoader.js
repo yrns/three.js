@@ -2103,9 +2103,6 @@ THREE.GLTFLoader = ( function () {
 
 									}
 
-									// blendergltf outputs identity matrices for inverses. If we don't pass a bindMatrix they will be calculated.
-									child.bind( new THREE.Skeleton( bones, boneInverses, false ) ); //, skinEntry.bindShapeMatrix );
-
 									var buildBoneGraph = function ( parentJson, parentObject, property ) {
 
 										var children = parentJson[ property ];
@@ -2130,6 +2127,9 @@ THREE.GLTFLoader = ( function () {
 									};
 
 									buildBoneGraph( node, child, 'skeletons' );
+
+									// blendergltf outputs identity matrices for inverses. If we don't pass a bindMatrix they will be calculated.
+									child.bind( new THREE.Skeleton( bones, boneInverses, false ) ); //, skinEntry.bindShapeMatrix );
 
 								}
 
