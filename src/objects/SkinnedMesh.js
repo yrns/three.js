@@ -10,7 +10,7 @@ import { Matrix4 } from '../math/Matrix4';
  * @author ikerr / http://verold.com
  */
 
-function SkinnedMesh( geometry, material, useVertexTexture ) {
+function SkinnedMesh( geometry, material, useVertexTexture, skipBones ) {
 
 	Mesh.call( this, geometry, material );
 
@@ -27,7 +27,7 @@ function SkinnedMesh( geometry, material, useVertexTexture ) {
 
 	var bones = [];
 
-	if ( this.geometry && this.geometry.bones !== undefined ) {
+	if ( !skipBones && this.geometry && this.geometry.bones !== undefined ) {
 
 		var bone, gbone;
 
@@ -67,7 +67,13 @@ function SkinnedMesh( geometry, material, useVertexTexture ) {
 	this.normalizeSkinWeights();
 
 	this.updateMatrixWorld( true );
-	this.bind( new Skeleton( bones, undefined, useVertexTexture ), this.matrixWorld );
+
+	// Only bind if there are bones from geometry.
+    if ( bones.length ) {
+		this.bind( new Skeleton( bones, undefined, useVertexTexture ), this.matrixWorld );
+    // } else {
+	// 	this.skeleton = null
+	}
 
 }
 
@@ -178,9 +184,29 @@ SkinnedMesh.prototype = Object.assign( Object.create( Mesh.prototype ), {
 
 	},
 
+	copy: function ( source ) {
+
+		// This will recursively copy bones.
+		Mesh.prototype.copy.call( this, source );
+		
+		// No skeleton? Bind a new skeleton with our (cloned)
+		// bones. Keep the bones in the same order.
+		if ( !this.skeleton ) {
+			
+			var bones = source.skeleton.bones.map(x => this.getObjectByName(x.name));
+			
+			// Reuse inverses.
+			this.bind( new Skeleton( bones, source.skeleton.boneInverses, source.skeleton.useVertexTexture ), this.matrixWorld );
+			
+		}
+
+		return this;
+
+	},
+
 	clone: function() {
 
-		return new this.constructor( this.geometry, this.material, this.skeleton.useVertexTexture ).copy( this );
+		return new this.constructor( this.geometry, this.material, this.skeleton.useVertexTexture, true ).copy( this );
 
 	}
 
