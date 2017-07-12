@@ -925,6 +925,28 @@ THREE.GLTFLoader = ( function () {
 
 	};
 
+	function parseData( uri ) {
+
+		var dataUriRegex = /^data:(.*?)(;base64)?,(.*)$/;
+		var dataUriRegexResult = uri.match( dataUriRegex );
+		//var mimeType = dataUriRegexResult[ 1 ];
+		var isBase64 = !! dataUriRegexResult[ 2 ];
+		var data = dataUriRegexResult[ 3 ];
+		data = window.decodeURIComponent( data );
+		if ( isBase64 ) data = window.atob( data );
+		var response = new ArrayBuffer( data.length );
+		var view = new Uint8Array( response );
+
+		for ( var i = 0; i < data.length; i ++ ) {
+
+			view[ i ] = data.charCodeAt( i );
+
+		}
+
+		return response;
+
+	}
+
 	GLTFParser.prototype.loadBuffers = function () {
 
 		var json = this.json;
@@ -941,17 +963,7 @@ THREE.GLTFLoader = ( function () {
 
 			if ( buffer.type === 'arraybuffer' || buffer.type === undefined ) {
 
-				return new Promise( function ( resolve ) {
-
-					var loader = new THREE.FileLoader();
-					loader.setResponseType( 'arraybuffer' );
-					loader.load( resolveURL( buffer.uri, options.path ), function ( buffer ) {
-
-						resolve( buffer );
-
-					} );
-
-				} );
+				return parseData( buffer.uri );
 
 			} else {
 
